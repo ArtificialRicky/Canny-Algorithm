@@ -1,8 +1,7 @@
 #include "opencv2/highgui.hpp"     // to use cv::waitKey()
 #include "opencv2/imgproc.hpp"     // to use cv::GaussianBlur()
 #include <assert.h>                // to use assert()
-#include <iostream>
-#include <unistd.h>
+#include <unistd.h>                // get_current_dir_name()
 
 #define name_var(x) #x;
 
@@ -133,48 +132,29 @@ void double_threshold(cv::Mat& image_grad, const int& low, const int& high) {
             }
         }
     }
-
-    // for (int i = 1; i < row_minus_1; ++i) {
-    //     for (int j = 0; j < col_minus_1; ++j) {
-    //         uchar& value = image_grad.at<uchar>(i, j);
-    //         bool changed = false;
-    //         if (value != 255 && value != 0) {
-    //             for (int m = -1; m <= 1; ++m) {
-    //                 for (int n = -1; n <= 1; ++n) {
-    //                     if (m == 0 && n == 0)
-    //                         continue;
-    //                     if (image_grad.at<uchar>(i + m, j + n) > high) {
-    //                         value = 255;
-    //                         changed = true;
-    //                         break;
-    //                     }
-    //                 }
-    //                 if (changed)
-    //                     break;
-    //             }
-    //             if (!changed)
-    //                 value = 0;
-    //         }
-    //     }
-    // }
 }
 
 void Canny(const cv::Mat& image_source, cv::Mat& image_output, const int& low_threshold, const int& high_threshold) {
     assert(low_threshold <= high_threshold);
     cv::Mat image_Gx, image_Gy;
-    cv::Mat_<float> angle;
+    cv::Mat_<float> angle;  // to store angle while calculating image gradient
+
     Gradient_image(image_source, image_output, image_Gx, image_Gy, angle);
     non_maximum_suppression(image_output, angle);
     double_threshold(image_output, low_threshold, high_threshold);
 }
 
 int main() {
+    // to get current directory where this .cpp file is locating.
     std::string image_path = get_current_dir_name();
+    
+    // get image file path in "Resources" directory
     image_path.append("/Resources/final fantasy 7 remake.png");
+        
     cv::Mat image_source = cv::imread(image_path, cv::IMREAD_COLOR);
+    
     cv::Mat image_source_gray = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
     cv::Mat image_blur, image_output;
-    cv::Mat_<float> angle;
 
     // reduce noise
     // when you debug, you must assign "image_path" by THE FULL IMAGE PATH that you want to test.
@@ -182,19 +162,23 @@ int main() {
         cv::GaussianBlur(image_source_gray, image_blur, cv::Size(5, 5), 150);
 
     // modifing "low" and "high" to get the appropriate threshold
+    // @ ===========
     int low = 40;
     int high = 60;
+    // @ ===========
 
     Canny(image_blur, image_output, low, high);
-
-    std::string name_image = name_var(image_output);
-
-    cv::imwrite(name_image.append(".png"), image_output);
-    // cv::namedWindow("image source", cv::WINDOW_NORMAL);
-    // cv::imshow("image source", image_source);
-
-    cv::namedWindow(name_image, cv::WINDOW_NORMAL);
-    cv::imshow(name_image, image_output);
+    
+    cv::imwrite("image_output.png", image_output);
+    
+    // show image_source
+    cv::namedWindow("image source", cv::WINDOW_NORMAL);
+    cv::imshow("image source", image_source);
+    
+    // show image_output
+    cv::namedWindow("image output", cv::WINDOW_NORMAL);
+    cv::imshow("image output", image_output);
+    
     cv::waitKey(0);
     return 0;
 }
