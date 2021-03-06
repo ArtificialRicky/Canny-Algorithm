@@ -25,7 +25,7 @@ switch to it:
 05. Start the compilation process:
 + `$ make -j8`
 
-+ `-j8` mean you use 8 processors (included hyper threading) to compile with cmake, you can modify the -j flag according to your processor. If you do not know the
++ `-j8` mean you use 8 processors (included hyper threading) to compile, you can modify the -j flag according to your processor. If you do not know the
 number of cores your processor, you can find it by typing `nproc`.
 
 06. Install OpenCV with:
