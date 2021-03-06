@@ -5,7 +5,7 @@
 
 #define name_var(x) #x;
 
-// * defind degree threshold
+// * define degree threshold
 // @ ====================================================
 bool __45_degree(const float& Angle) {
     return ((Angle > 0) && (Angle <= 45)) || ((Angle > 180) && (Angle <= 225));
