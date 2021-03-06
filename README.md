@@ -1,4 +1,4 @@
-# Canny-Algorithm, implement Canny algorithm by C++
+# Canny edge detector algorithm, implement Canny algorithm by C++
 
 @ Operating system: **Ubuntu 20.04.2 or any GNU linux distro**
 
