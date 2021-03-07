@@ -3,7 +3,7 @@
 @ Operating system: **Ubuntu 20.04.2 or any GNU linux distro**
 
 @ Tools: **g++ 9.3.0, Opencv version 4.5.1, Microsoft Visual Studio code**.
-- [Install opencv](#Install-Opencv-version-4.5.1)
+- [Install opencv](#Install-Opencv-version-451)
 - [Setup VScode](#Set-up-VS-code)
 - [Build cpp file](#Build-the-cpp-file)
 
