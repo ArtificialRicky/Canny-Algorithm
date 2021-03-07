@@ -7,9 +7,9 @@
 - [Setup VScode](#Set-up-VS-code)
 - [Build cpp file](#Build-the-cpp-file)
 
-# Install Opencv version 4.5.1
+### Install Opencv version 4.5.1
 
- 01. Install the required dependencies:
+01. Install the required dependencies:
 + `$ sudo apt install build-essential cmake git pkg-config libgtk-3-dev gfortran openexr libatlas-base-dev python3-dev python3-numpy libtbb2 libtbb-dev libdc1394-22-dev`
 
 02. Clone the OpenCV’s and OpenCV contrib repositories:
@@ -28,13 +28,13 @@ switch to it:
 05. Start the compilation process:
 + `$ make -j8`
 
-+ `-j8` mean you use 8 processors (included hyper threading) to compile, you can modify the -j flag according to your processor. If you do not know the
+   + `-j8` mean you use 8 processors (included hyper threading) to compile, you can modify the -j flag according to your processor. If you do not know the
 number of cores your processor, you can find it by typing `nproc`.
 
 06. Install OpenCV with:
 + `$ sudo make install`
 
-# Set up VS code:
+### Set up VS code:
 
 - The `c_cpp_properties.json` file:
 ```
@@ -125,9 +125,9 @@ number of cores your processor, you can find it by typing `nproc`.
 }
 ```
 
-# Build the cpp file
+### Build the cpp file
 - Open terminal and type this command to compile .cpp file: ```cd "directory" && g++ canny_algorithm.cpp -o canny_algorithm -std=c++2a -pthread `pkg-config --libs --cflags opencv4` && ./canny_algorithm && rm canny_algorithm```
-  - `"directory"` is the full path that `algorithm.cpp` is locating. **Example:** `/home/Canny/`.
+  - `"directory"` is the full path that `algorithm.cpp` is locating. **For example:** `/home/Canny/`.
 
 
 
