@@ -3,10 +3,6 @@
 #include <assert.h>                // to use assert()
 #include <unistd.h>     // get_current_dir_name()
 
-// ? lam them phep khu gaussian
-
-#define name_var(x) #x;
-
 // * defind degree threshold
 // @ ====================================================
 bool __45_degree(const float& Angle) {
@@ -98,7 +94,7 @@ void non_maximum_suppression(cv::Mat& image_output,            // image has been
 }
 
 void double_threshold(cv::Mat& image_output, const int& low, const int& high) {
-    assert(low > 0 && high > 0  and low <= high);     // if (low < 0) or (high < 0) or (low > high), exit this function immediately
+    assert(low => 0 && high => 0  and low <= high);     // if (low < 0) or (high < 0) or (low > high), exit this function immediately
     int row_minus_1 = image_output.rows - 1;
     int col_minus_1 = image_output.cols - 1;
     for (int i = 1; i < row_minus_1; ++i) {
