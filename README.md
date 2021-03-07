@@ -130,8 +130,9 @@ number of cores your processor, you can find it by typing `nproc`.
 ```
 
 ### Build the cpp file
-- Open terminal and type this command to compile .cpp file: ```cd "directory" && g++ canny_algorithm.cpp -o canny_algorithm -std=c++2a -pthread `pkg-config --libs --cflags opencv4` && ./canny_algorithm && rm canny_algorithm```
-  - `"directory"` is the full path that `algorithm.cpp` is locating. **For example:** `/home/Canny/`.
+- Open terminal and type this command to compile .cpp file: 
+   - ```cd "directory" && g++ canny_algorithm.cpp -o canny_algorithm -std=c++2a -pthread `pkg-config --libs --cflags opencv4` && ./canny_algorithm && rm canny_algorithm```
+      - `"directory"` is the full path that `algorithm.cpp` is locating. **For example:** `/home/Canny/`.
 
 
 
