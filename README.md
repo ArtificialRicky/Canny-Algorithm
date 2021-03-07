@@ -1,6 +1,6 @@
-# Canny edge detector algorithm, implement Canny algorithm by C++
+# Canny edge detector algorithm, implement Canny algorithm by C++.
 
-@ Operating system: **Ubuntu 20.04.2 or any GNU linux distro**
+@ Operating system: **Ubuntu 20.04.2 or any GNU linux distro.**
 
 @ Tools: **g++ 9.3.0, Opencv version 4.5.1, Microsoft Visual Studio code**.
 
