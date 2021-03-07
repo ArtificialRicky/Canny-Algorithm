@@ -3,11 +3,14 @@
 @ Operating system: **Ubuntu 20.04.2 or any GNU linux distro**
 
 @ Tools: **g++ 9.3.0, Opencv version 4.5.1, Microsoft Visual Studio code**.
+
+### Reference
 - [Install opencv](#Install-Opencv-version-451)
 - [Setup VScode](#Set-up-VS-code)
 - [Build cpp file](#Build-the-cpp-file)
 
 ### Install Opencv version 4.5.1
+[Reference](#Reference)
 
 01. Install the required dependencies:
 + `$ sudo apt install build-essential cmake git pkg-config libgtk-3-dev gfortran openexr libatlas-base-dev python3-dev python3-numpy libtbb2 libtbb-dev libdc1394-22-dev`
@@ -35,6 +38,7 @@ number of cores your processor, you can find it by typing `nproc`.
 + `$ sudo make install`
 
 ### Set up VS code:
+[Reference](#Reference)
 
 - The `c_cpp_properties.json` file:
 ```
