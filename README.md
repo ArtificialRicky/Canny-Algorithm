@@ -3,9 +3,9 @@
 @ Operating system: **Ubuntu 20.04.2 or any GNU linux distro**
 
 @ Tools: **g++ 9.3.0, Opencv version 4.5.1, Microsoft Visual Studio code**.
-- [Install opencv](#Install-Opencv-version-4\.5\.1)
+- [Install opencv](#Install-Opencv-version-4.5.1)
 - [Setup VScode](#Set-up-VS-code)
-- [Build .cpp file](#Build-\.cpp-file)
+- [Build cpp file](#Build-the-cpp-file)
 
 # Install Opencv version 4.5.1
 
@@ -125,7 +125,7 @@ number of cores your processor, you can find it by typing `nproc`.
 }
 ```
 
-# Build .cpp file
+# Build the cpp file
 - Open terminal and type this command to compile .cpp file: ```cd "directory" && g++ canny_algorithm.cpp -o canny_algorithm -std=c++2a -pthread `pkg-config --libs --cflags opencv4` && ./canny_algorithm && rm canny_algorithm```
   - `"directory"` is the full path that `algorithm.cpp` is locating. **Example:** `/home/Canny/`.
 
