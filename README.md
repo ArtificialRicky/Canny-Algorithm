@@ -37,6 +37,9 @@ number of cores your processor, you can find it by typing `nproc`.
 06. Install OpenCV with:
 + `$ sudo make install`
 
+07. link directory:
++ sudo ln -s /usr/local/include/opencv4/opencv2/ /usr/local/include/opencv2
+
 ### Set up VS code:
 [Reference](#Reference)
 
