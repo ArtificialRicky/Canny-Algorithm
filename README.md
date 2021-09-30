@@ -2,7 +2,7 @@
 
 @ Operating system: **Ubuntu 20.04.2 or any GNU linux distro.**
 
-@ Tools: **g++ 9.3.0, Opencv version 4.5.1, Microsoft Visual Studio code**.
+@ Tools: **g++ 9.3.0, Opencv 4.5.1, cmake, Microsoft Visual Studio code**.
 
 ### Reference
 - [Install opencv](#Install-Opencv-version-451)
@@ -37,8 +37,6 @@ number of cores your processor, you can find it by typing `nproc`.
 06. Install OpenCV with:
 + `$ sudo make install`
 
-07. link directory:
-+ sudo ln -s /usr/local/include/opencv4/opencv2/ /usr/local/include/opencv2
 
 ### Set up VS code:
 [Reference](#Reference)
@@ -46,12 +44,12 @@ number of cores your processor, you can find it by typing `nproc`.
 - The `c_cpp_properties.json` file:
 ```
 {
+    "configurations": [
+        {
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/usr/local/include/opencv4/",
-                "/usr/local/include/",
-                "/usr/include/"
+                "/usr/local/include/opencv4/"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",
@@ -59,6 +57,8 @@ number of cores your processor, you can find it by typing `nproc`.
             "cppStandard": "c++20",
             "intelliSenseMode": "gcc-x64"
         }
+    ],
+    "version": 4
 }
 ```
 
@@ -70,31 +70,13 @@ number of cores your processor, you can find it by typing `nproc`.
         {
             "label": "C/C++: g++ build active file",
             "type": "shell",
-            "command": "/usr/bin/g++",
+            "command": "make",
             "args": [
-                "-g",
-                "${file}",
-                "-std=c++2a",
-                "-o",
-                "${fileDirname}/${fileBasenameNoExtension}",
-                "-I/usr/local/include/opencv4/",
-                "-L/usr/local/lib",
-                "-lopencv_shape",
-                "-lopencv_stitching",
-                "-lopencv_objdetect",
-                "-lopencv_superres",
-                "-lopencv_videostab",
-                "-lopencv_calib3d",
-                "-lopencv_features2d",
-                "-lopencv_highgui",
-                "-lopencv_videoio",
-                "-lopencv_imgcodecs",
-                "-lopencv_video",
-                "-lopencv_photo",
-                "-lopencv_ml",
-                "-lopencv_imgproc",
-                "-lopencv_flann",
-                "-lopencv_core"
+                "--directory=\"${workspaceFolder}\"",
+                "debug",
+                "DIR=\"\"",
+                "CPP_FILE=\"${file}\"",
+                "OUTPUT_FILE=\"${fileDirname}/${fileBasenameNoExtension}\""
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -112,7 +94,8 @@ number of cores your processor, you can find it by typing `nproc`.
 
 - The `launch.json`file:
 ```
-"version": "0.2.0",
+{
+    "version": "0.2.0",
     "configurations": [
         {
             "name": "C/C++ Debugger - Current File",
@@ -126,16 +109,17 @@ number of cores your processor, you can find it by typing `nproc`.
             "MIMode": "gdb",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
             "miDebuggerPath": "/usr/bin/gdb",
-            "preLaunchTask": "C/C++: g++ build active file"
+            "preLaunchTask": "C/C++: g++ build active file",
         }
     ]
 }
 ```
 
 ### Build the cpp file
-- Open terminal and type this command to compile .cpp file: 
-   - ```cd "directory" && g++ canny_algorithm.cpp -o canny_algorithm -std=c++2a `pkg-config --libs --cflags opencv4` && ./canny_algorithm && rm canny_algorithm```
-      - `"directory"` is the full path that `algorithm.cpp` is locating. **For example:** `/home/Canny/`.
+```
+make build CPP_FILE="canny_algorithm.cpp" OUTPUT_FILE="canny_algorithm" && ./canny_algorithm
+```
+If you install **Code Runner** in your VSCode, you can use `Ctrl + Alt + N`
 
 
 

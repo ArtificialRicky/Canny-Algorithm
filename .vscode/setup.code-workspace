@@ -1,0 +1,92 @@
+{
+    "folders": [
+        {
+            "path": ".."
+        }
+    ],
+    "settings": {
+        "code-runner.runInTerminal": true,
+        "code-runner.saveAllFilesBeforeRun": true,
+        "code-runner.saveFileBeforeRun": true,
+        "code-runner.showExecutionMessage": false,
+        "code-runner.clearPreviousOutput": false,
+        "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: LLVM, IndentWidth: 4, ColumnLimit: 0, SpacesBeforeTrailingComments: 5, Cpp11BracedListStyle: true, DerivePointerAlignment: true,  PointerAlignment: Right}",
+        "editor.formatOnSave": false,
+        "editor.formatOnPaste": true,
+        "editor.formatOnType": true,
+        "json.format.enable": true,
+        "editor.fontFamily": "Consolas",
+        "editor.fontSize": 15,
+        "git.ignoreLimitWarning": true,
+        "code-runner.executorMap": {
+            "cpp": "make --directory=\"$workspaceRoot\" build DIR=$dir CPP_FILE=\"$fileName\" OUTPUT_FILE=\"$fileNameWithoutExt\" && cd $dir && ./\"$fileNameWithoutExt\" && rm -f \"$fileNameWithoutExt\"",
+        },
+        "better-comments.multilineComments": true,
+        "better-comments.highlightPlainText": false,
+        "better-comments.tags": [
+            {
+                "tag": "!",
+                "color": "#FF2D00",
+                "strikethrough": false,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            },
+            {
+                "tag": "*",
+                "color": "#55ff00",
+                "strikethrough": false,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            },
+            {
+                "tag": "//",
+                "color": "#474747",
+                "strikethrough": true,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            },
+            {
+                "tag": "todo",
+                "color": "#FF8C00",
+                "strikethrough": false,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            },
+            {
+                "tag": "?",
+                "color": "#d000ff",
+                "strikethrough": false,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            },
+            {
+                "tag": "@",
+                "color": "#ffffff",
+                "strikethrough": false,
+                "underline": false,
+                "backgroundColor": "transparent",
+                "bold": false,
+                "italic": false
+            }
+        ],
+    },
+    "extensions": {
+        "recommendations": [
+            "jeff-hykin.better-cpp-syntax",
+            "aaron-bond.better-comments",
+            "coenraads.bracket-pair-colorizer",
+            "formulahendry.code-runner",
+            "ms-vscode.cpptools-extension-pack",
+        ]
+    }
+}
