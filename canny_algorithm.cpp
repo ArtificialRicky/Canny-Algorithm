@@ -21,20 +21,20 @@ bool is_180_degree(const float &Angle) {
 }
 // @ ====================================================
 
-void Gradient_image(const cv::Mat &image_source,
-                    cv::Mat &image_output,      // an empty matrix to store result
+void Gradient_image(const cv::Mat &img_src,
+                    cv::Mat &img_out,      // an empty matrix to store result
                     cv::Mat_<float> &angle)     // an empty matrix to store arctan(Gy / Gx)
 {
-    angle = cv::Mat_<float>::zeros(image_source.size());
-    image_output = cv::Mat::zeros(image_source.size(), CV_8UC1);
-    int row_minus_1 = image_source.rows - 1;
-    int col_minus_1 = image_source.cols - 1;
+    angle = cv::Mat_<float>::zeros(img_src.size());
+    img_out = cv::Mat::zeros(img_src.size(), CV_8UC1);
+    int row_minus_1 = img_src.rows - 1;
+    int col_minus_1 = img_src.cols - 1;
 
-    int row = image_source.rows;
-    int col = image_source.cols;
+    int row = img_src.rows;
+    int col = img_src.cols;
 
-    auto point = image_source.data;
-    int step = image_source.step;
+    auto point = img_src.data;
+    int step = img_src.step;
 
     for (int i = 1; i < row_minus_1; ++i) {
         for (int j = 1; j < col_minus_1; ++j) {
@@ -55,38 +55,38 @@ void Gradient_image(const cv::Mat &image_source,
             float grad_y = pixel_00 + (2 * pixel_01) + pixel_02 - pixel_20 - (2 * pixel_21) - pixel_22;
 
             angle.at<float>(i, j) = atan(grad_y / (grad_x == 0 ? 0.00001 : grad_x));
-            image_output.at<uchar>(i, j) = sqrt(grad_x * grad_x + grad_y * grad_y);
+            img_out.at<uchar>(i, j) = sqrt(grad_x * grad_x + grad_y * grad_y);
         }
     }
 }
 
-void non_maximum_suppression(cv::Mat &image_output,            // image has been gradiented first
+void non_maximum_suppression(cv::Mat &img_out,            // image has been gradiented first
                              const cv::Mat_<float> &angle)     // image which store angel
 {
-    int row_minus_1 = image_output.rows - 1;
-    int col_minus_1 = image_output.cols - 1;
+    int row_minus_1 = img_out.rows - 1;
+    int col_minus_1 = img_out.cols - 1;
 
     for (int i = 1; i < row_minus_1; ++i) {
         for (int j = 1; j < col_minus_1; ++j) {
             float Angle = angle.at<float>(i, j);
-            uchar &value = image_output.at<uchar>(i, j);
+            uchar &value = img_out.at<uchar>(i, j);
             uchar previous, next;
 
             if (is_45_degree(Angle)) {
-                previous = image_output.at<uchar>(i - 1, j + 1);     // pixel_02
-                next = image_output.at<uchar>(i + 1, j - 1);         // pixel_20
+                previous = img_out.at<uchar>(i - 1, j + 1);     // pixel_02
+                next = img_out.at<uchar>(i + 1, j - 1);         // pixel_20
             
             } else if (is_90_degree(Angle)) {
-                previous = image_output.at<uchar>(i - 1, j);     // pixel_01
-                next = image_output.at<uchar>(i + 1, j);         // pixel_21
+                previous = img_out.at<uchar>(i - 1, j);     // pixel_01
+                next = img_out.at<uchar>(i + 1, j);         // pixel_21
             
             } else if (is_135_degree(Angle)) {
-                previous = image_output.at<uchar>(i - 1, j - 1);     // pixel_00
-                next = image_output.at<uchar>(i + 1, j + 1);         // pixel_22
+                previous = img_out.at<uchar>(i - 1, j - 1);     // pixel_00
+                next = img_out.at<uchar>(i + 1, j + 1);         // pixel_22
             
             } else if (is_180_degree(Angle)) {
-                previous = image_output.at<uchar>(i, j - 1);     // pixel_10
-                next = image_output.at<uchar>(i, j + 1);         // pixel_12
+                previous = img_out.at<uchar>(i, j - 1);     // pixel_10
+                next = img_out.at<uchar>(i, j + 1);         // pixel_12
             }
 
             if (value < previous || value < next)
@@ -95,18 +95,18 @@ void non_maximum_suppression(cv::Mat &image_output,            // image has been
     }
 }
 
-void double_threshold(cv::Mat &image_output,
+void double_threshold(cv::Mat &img_out,
                       const int &low,
                       const int &high) 
 {
     assert(low >= 0 && high >= 0 && low <= high);     // if (low < 0) or (high < 0) or (low > high), exit this function immediately
     
-    int row_minus_1 = image_output.rows - 1;
-    int col_minus_1 = image_output.cols - 1;
+    int row_minus_1 = img_out.rows - 1;
+    int col_minus_1 = img_out.cols - 1;
     
     for (int i = 1; i < row_minus_1; ++i) {
         for (int j = 1; j < col_minus_1; ++j) {
-            uchar &value = image_output.at<uchar>(i, j);
+            uchar &value = img_out.at<uchar>(i, j);
             bool changed = false;
             if (value < low)
                 value = 0;
@@ -117,7 +117,7 @@ void double_threshold(cv::Mat &image_output,
                     for (int n = -1; n <= 1; ++n) {
                         if (m == 0 && n == 0)
                             continue;
-                        if (image_output.at<uchar>(i + m, j + n) > high) {
+                        if (img_out.at<uchar>(i + m, j + n) > high) {
                             value = 255;
                             changed = true;
                             break;
@@ -133,30 +133,29 @@ void double_threshold(cv::Mat &image_output,
     }
 }
 
-void Canny(const cv::Mat &image_source,
-           cv::Mat &image_output,
+void Canny(const cv::Mat &img_src,
+           cv::Mat &img_out,
            const int &low_threshold, const int &high_threshold) 
 {
     assert(low_threshold <= high_threshold);
     cv::Mat_<float> angle;     // to store angle while calculating image gradient
-    Gradient_image(image_source, image_output, angle);
-    non_maximum_suppression(image_output, angle);
-    double_threshold(image_output, low_threshold, high_threshold);
+    Gradient_image(img_src, img_out, angle);
+    non_maximum_suppression(img_out, angle);
+    double_threshold(img_out, low_threshold, high_threshold);
 }
 
 int main() {
-    // get image file path in "Resources" directory
-    std::string image_path("Resources/mikazuki.jpg");
 
-    cv::Mat image_source = cv::imread(image_path, cv::IMREAD_COLOR);
+    cv::Mat img_src = cv::imread("input/touka-kirisima.png", cv::IMREAD_COLOR);
 
-    cv::Mat image_source_gray = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
-    cv::Mat image_blur, image_output;
+    cv::Mat img_gray;
+    cv::cvtColor(img_src, img_gray, cv::COLOR_BGR2GRAY);
 
     // reduce noise
     // when you debug, you must assign "image_path" by THE FULL IMAGE PATH that you want to test.
-    if (!image_source_gray.empty())
-        cv::GaussianBlur(image_source_gray, image_blur, cv::Size(5, 5), 150);
+    cv::Mat img_blur;
+    if (!img_gray.empty())
+        cv::GaussianBlur(img_gray, img_blur, cv::Size(5, 5), 150);
 
     // modifing "low" and "high" to get the appropriate threshold
     // @ ===========
@@ -164,17 +163,22 @@ int main() {
     int high = 60;
     // @ ===========
 
-    Canny(image_blur, image_output, low, high);
+    cv::Mat img_out;
+    cv::Mat_<float> angle;     // to store angle while calculating image gradient
+    Gradient_image(img_blur, img_out, angle);
+    cv::imwrite("output/gradient/touka-kirisima-gradient.png", img_out);
 
-    cv::imwrite("image_output.png", image_output);
+    Canny(img_blur, img_out, low, high);
+    cv::imwrite("output/canny/touka-kirisima-canny.png", img_out);
 
-    // show image_source
+
+    // show img_src
     cv::namedWindow("image source", cv::WINDOW_NORMAL);
-    cv::imshow("image source", image_source);
+    cv::imshow("image source", img_src);
 
-    // show image_output
+    // show img_out
     cv::namedWindow("image output", cv::WINDOW_NORMAL);
-    cv::imshow("image output", image_output);
+    cv::imshow("image output", img_out);
 
     cv::waitKey(0);
     return 0;
