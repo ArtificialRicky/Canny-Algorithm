@@ -2,7 +2,7 @@
 
 ### Reference
 - [Enviroment](#Enviroment)
-- [Install opencv](#Install-OpenCV-version-453)
+- [Install OpenCV](#Install-OpenCV-version-453)
 - [Build cpp file](#Build-the-cpp-file)
 
 ### Enviroment
