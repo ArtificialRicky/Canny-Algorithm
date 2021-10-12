@@ -11,10 +11,11 @@
 - Tools: **g++ 9.3.0, Opencv 4.5.3, cmake, Microsoft Visual Studio code**.
 
 ### Install OpenCV version 4.5.3
+- Debian
 ```
 sudo apt-get install libopencv-dev
 ```
-
+- Arch
 ```
 sudo pacman -S gcc gdb
 sudo pacman -S opencv
