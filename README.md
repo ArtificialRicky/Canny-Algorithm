@@ -11,6 +11,9 @@
 - Tools: **g++ 9.3.0, Opencv 4.5.3, cmake, Microsoft Visual Studio code**.
 
 ### Install OpenCV version 4.5.3
+```
+sudo apt-get install libopencv-dev
+```
 
 ```
 sudo pacman -S gcc gdb
