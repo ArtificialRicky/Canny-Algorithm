@@ -1,8 +1,7 @@
-CPP_FILE ?= "main.cpp"
-OUTPUT_FILE = "main"
-DIR ?= ""
+CPP_FILE ?= "canny_algorithm.cpp"
+OUTPUT_FILE = "canny_algorithm.out"
 build:
-	g++ "$(DIR)$(CPP_FILE)" \
+	g++ "$(CPP_FILE)" \
 			-L/usr/lib \
 				-lopencv_core \
 				-lopencv_highgui \
@@ -10,10 +9,14 @@ build:
 				-lopencv_imgproc \
 			-I/usr/include/opencv4/ \
 			-Wl,-R/usr/local/lib \
-			-o "$(DIR)$(OUTPUT_FILE)"
+			-o "$(OUTPUT_FILE)"
+
+run:
+	./canny_algorithm.out
+
 
 debug:
-	g++ -g "$(DIR)$(CPP_FILE)" \
+	g++ -g "$(CPP_FILE)" \
 			-L/usr/lib \
 				-lopencv_core \
 				-lopencv_highgui \
@@ -21,4 +24,4 @@ debug:
 				-lopencv_imgproc \
 			-I/usr/include/opencv4/ \
 			-Wl,-R/usr/local/lib \
-			-o "$(DIR)$(OUTPUT_FILE)"
+			-o "$(OUTPUT_FILE)"
