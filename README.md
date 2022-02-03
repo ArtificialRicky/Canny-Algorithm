@@ -1,23 +1,18 @@
 # Canny edge detector algorithm with in C++.
 
 ### Reference
-- [Enviroment](#Enviroment)
 - [Install OpenCV](#Install-OpenCV-version-453)
 - [Build cpp file](#Build-the-cpp-file)
 
-### Enviroment
-- Operating system: **Garuda Linux** 
-
-- Tools: **g++ 9.3.0, Opencv 4.5.3, cmake, Microsoft Visual Studio code**.
-
-### Install OpenCV version 4.5.3
+### Install opencv
 - Debian
 ```
+sudo apt-get install g++
 sudo apt-get install libopencv-dev
 ```
 - Arch
 ```
-sudo pacman -S gcc gdb
+sudo pacman -S gcc 
 sudo pacman -S opencv
 ```
 
