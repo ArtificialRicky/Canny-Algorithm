@@ -1,5 +1,12 @@
 # Canny edge detector algorithm with in C++.
 
+<div align="center">
+
+  |![input](input/touka-kirisima.png)|![output](output/canny/touka-kirisima-canny.png)|
+  |:--:|:--:|
+  
+</div>
+
 ### Reference
 - [Install OpenCV](#Install-OpenCV-version-453)
 - [Build cpp file](#Build-the-cpp-file)
@@ -21,7 +28,3 @@ sudo pacman -S opencv
 make build
 make run
 ```
-If you have installed [Code Runner](https://marketplace.visualstudio.com/items?itemName=formulahendry.code-runner), you can use `Ctrl + Alt + N`
-
-
-
