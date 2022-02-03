@@ -1,4 +1,4 @@
-# Canny edge detector algorithm with in C++.
+# C++ implementation of Canny edge detector algorithm
 
 <div align="center">
 
@@ -23,7 +23,7 @@ sudo pacman -S gcc
 sudo pacman -S opencv
 ```
 
-### Build the cpp file
+### Build and run
 ```
 make build
 make run
