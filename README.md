@@ -23,7 +23,8 @@ sudo pacman -S opencv
 
 ### Build the cpp file
 ```
-make build CPP_FILE="canny_algorithm.cpp" OUTPUT_FILE="canny_algorithm" && ./canny_algorithm
+make build
+make run
 ```
 If you have installed [Code Runner](https://marketplace.visualstudio.com/items?itemName=formulahendry.code-runner), you can use `Ctrl + Alt + N`
 
