@@ -160,10 +160,10 @@ void Canny(const cv::Mat &img_src,
 }
 
 int main() {
+    cv::Mat img_src = cv::imread("input/ff7-remake.png", cv::IMREAD_COLOR);
+    std::cout << "Image size: " << img_src.cols << " x " << img_src.rows << std::endl;
+
     int64 start = cv::getTickCount();
-
-    cv::Mat img_src = cv::imread("input/touka-kirisima.png", cv::IMREAD_COLOR);
-
     cv::Mat img_gray;
     cv::cvtColor(img_src, img_gray, cv::COLOR_BGR2GRAY);
 
@@ -180,8 +180,8 @@ int main() {
 
     cv::Mat img_out;
     cv::Mat_<float> angle;     // to store angle while calculating image gradient
-    Gradient_image(img_blur, img_out, angle);
-    cv::imwrite("output/gradient/touka-kirisima-gradient.png", img_out);
+    // Gradient_image(img_blur, img_out, angle);
+    // cv::imwrite("output/gradient/touka-kirisima-gradient.png", img_out);
 
     Canny(img_blur, img_out, low, high);
     cv::imwrite("output/canny/touka-kirisima-canny.png", img_out);
