@@ -1,5 +1,7 @@
 #include "opencv2/highgui.hpp"     // to use cv::waitKey()
 #include "opencv2/imgproc.hpp"     // to use cv::GaussianBlur()
+#include <opencv2/core.hpp>   // for getTickCount()
+#include <iostream>           // for std::cout
 #include <assert.h>                // to use assert()
 
 //* defind degree threshold
@@ -140,12 +142,25 @@ void Canny(const cv::Mat &img_src,
 {
     assert(low_threshold <= high_threshold);
     cv::Mat_<float> angle;     // to store angle while calculating image gradient
+
+    int64 t1 = cv::getTickCount();
     Gradient_image(img_src, img_out, angle);
+    int64 t2 = cv::getTickCount();
+    std::cout << "Gradient_image: " << (t2 - t1) / cv::getTickFrequency() << " sec\n";
+
     non_maximum_suppression(img_out, angle);
+    int64 t3 = cv::getTickCount();
+    std::cout << "non_maximum_suppression: " << (t3 - t2) / cv::getTickFrequency() << " sec\n";
+
     double_threshold(img_out, low_threshold, high_threshold);
+    int64 t4 = cv::getTickCount();
+    std::cout << "double_threshold: " << (t4 - t3) / cv::getTickFrequency() << " sec\n";
+
+    std::cout << "Total Canny time: " << (t4 - t1) / cv::getTickFrequency() << " sec\n";
 }
 
 int main() {
+    int64 start = cv::getTickCount();
 
     cv::Mat img_src = cv::imread("input/touka-kirisima.png", cv::IMREAD_COLOR);
 
@@ -171,13 +186,16 @@ int main() {
     Canny(img_blur, img_out, low, high);
     cv::imwrite("output/canny/touka-kirisima-canny.png", img_out);
 
-    // show img_src
-    cv::namedWindow("image source", cv::WINDOW_NORMAL);
-    cv::imshow("image source", img_src);
+    int64 end = cv::getTickCount();
+    std::cout << "==> Total runtime: " << (end - start) / cv::getTickFrequency() << " sec\n";
 
-    // show img_out
-    cv::namedWindow("image output", cv::WINDOW_NORMAL);
-    cv::imshow("image output", img_out);
+    // // show img_src
+    // cv::namedWindow("image source", cv::WINDOW_NORMAL);
+    // cv::imshow("image source", img_src);
+
+    // // show img_out
+    // cv::namedWindow("image output", cv::WINDOW_NORMAL);
+    // cv::imshow("image output", img_out);
 
     cv::waitKey(0);
     return 0;
