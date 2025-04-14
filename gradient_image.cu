@@ -34,8 +34,8 @@ void Gradient_image(const cv::Mat &img_src,
     int row_minus_1 = img_src.rows - 1;
     int col_minus_1 = img_src.cols - 1;
 
-    int row = img_src.rows;
-    int col = img_src.cols;
+    // int row = img_src.rows;
+    // int col = img_src.cols;
 
     auto point = img_src.data;
     int step = img_src.step;
@@ -46,7 +46,7 @@ void Gradient_image(const cv::Mat &img_src,
             uchar pixel_01 = point[(i - 1) * step + j];
             uchar pixel_02 = point[(i - 1) * step + j + 1];
             uchar pixel_10 = point[i * step + j - 1];
-            uchar pixel_11 = point[i * step + j];
+            // uchar pixel_11 = point[i * step + j];
             uchar pixel_12 = point[i * step + j + 1];
             uchar pixel_20 = point[(i + 1) * step + j - 1];
             uchar pixel_21 = point[(i + 1) * step + j];
