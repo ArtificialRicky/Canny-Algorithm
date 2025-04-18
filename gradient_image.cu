@@ -8,20 +8,24 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
+
+#define BLOCK_SIZE_X 16
+#define BLOCK_SIZE_Y 16
+
 // 定义角度阈值判断函数
-bool is_45_degree(const float &Angle) {
+__device__ bool is_45(float Angle) {
     return (Angle > 0 && Angle <= 45) || (Angle > 180 && Angle <= 225);
 }
 
-bool is_90_degree(const float &Angle) {
+__device__ bool is_90(float Angle) {
     return (Angle > 45 && Angle <= 90) || (Angle > 225 && Angle <= 270);
 }
 
-bool is_135_degree(const float &Angle) {
+__device__ bool is_135(float Angle) {
     return (Angle > 90 && Angle <= 135) || (Angle > 270 && Angle <= 315);
 }
 
-bool is_180_degree(const float &Angle) {
+__device__ bool is_180(float Angle) {
     return (Angle == 0) || (Angle > 135 && Angle <= 180) || (Angle > 315 && Angle <= 360);
 }
 
@@ -147,72 +151,131 @@ void Gradient_image_cuda(const cv::Mat &img_src,
 }
 
 // 非极大值抑制：仅保留局部极大值
+__global__ void non_maximum_suppression_kernel(
+    unsigned char* img, const float* angle, int rows, int cols, int step)
+{
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < 1 || j < 1 || i >= rows - 1 || j >= cols - 1) return;
+
+    int idx = i * step + j;
+    float Angle = angle[i * cols + j];
+    uchar value = img[idx];
+    uchar previous = 0, next = 0;
+
+    if (is_45(Angle)) {
+        previous = img[(i - 1) * step + (j + 1)];
+        next = img[(i + 1) * step + (j - 1)];
+    } else if (is_90(Angle)) {
+        previous = img[(i - 1) * step + j];
+        next = img[(i + 1) * step + j];
+    } else if (is_135(Angle)) {
+        previous = img[(i - 1) * step + (j - 1)];
+        next = img[(i + 1) * step + (j + 1)];
+    } else if (is_180(Angle)) {
+        previous = img[i * step + (j - 1)];
+        next = img[i * step + (j + 1)];
+    }
+
+    if (value < previous || value < next)
+        img[idx] = 0;
+}
+
 void non_maximum_suppression(cv::Mat &img_out, const cv::Mat_<float> &angle)
 {
-    int row_minus_1 = img_out.rows - 1;
-    int col_minus_1 = img_out.cols - 1;
+    int rows = img_out.rows;
+    int cols = img_out.cols;
+    int step = img_out.step;
 
-    for (int i = 1; i < row_minus_1; ++i) {
-        for (int j = 1; j < col_minus_1; ++j) {
-            float Angle = angle.at<float>(i, j);
-            uchar &value = img_out.at<uchar>(i, j);
-            uchar previous, next;
+    size_t img_size = rows * step * sizeof(uchar);
+    size_t angle_size = rows * cols * sizeof(float);
 
-            if (is_45_degree(Angle)) {
-                previous = img_out.at<uchar>(i - 1, j + 1);
-                next = img_out.at<uchar>(i + 1, j - 1);
-            } else if (is_90_degree(Angle)) {
-                previous = img_out.at<uchar>(i - 1, j);
-                next = img_out.at<uchar>(i + 1, j);
-            } else if (is_135_degree(Angle)) {
-                previous = img_out.at<uchar>(i - 1, j - 1);
-                next = img_out.at<uchar>(i + 1, j + 1);
-            } else if (is_180_degree(Angle)) {
-                previous = img_out.at<uchar>(i, j - 1);
-                next = img_out.at<uchar>(i, j + 1);
+    uchar *d_img;
+    float *d_angle;
+
+    cudaMalloc(&d_img, img_size);
+    cudaMalloc(&d_angle, angle_size);
+
+    cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_angle, angle.ptr<float>(), angle_size, cudaMemcpyHostToDevice);
+
+    dim3 block(16, 16);
+    dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
+    non_maximum_suppression_kernel<<<grid, block>>>(d_img, d_angle, rows, cols, step);
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
+    cudaFree(d_img);
+    cudaFree(d_angle);
+}
+
+__global__ void double_threshold_kernel(uchar *img, int width, int height, int low, int high, int step)
+{
+    // 注意：这个版本假设核函数只处理内部区域，不访问图像边界像素
+    int x = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
+
+    // 为了使用简单边界，分配 tile 比实际 block 大两列两行
+    __shared__ uchar tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 2];
+
+    int local_x = threadIdx.x + 1;
+    int local_y = threadIdx.y + 1;
+
+    // 加载中心区域
+    tile[local_y][local_x] = img[y * step + x];
+
+    // 保证共享内存加载完毕
+    __syncthreads();
+
+    // 仅处理内部区域像素，不处理边界（已通过传参或 grid 配置排除）
+    uchar value = tile[local_y][local_x];
+    if (value < low) {
+        value = 0;
+    } else if (value > high) {
+        value = 255;
+    } else {
+        bool has_strong_neighbor = false;
+        #pragma unroll
+        for (int m = -1; m <= 1 && !has_strong_neighbor; ++m) {
+            #pragma unroll
+            for (int n = -1; n <= 1; ++n) {
+                if (m == 0 && n == 0) continue;
+                if (tile[local_y + m][local_x + n] > high) {
+                    value = 255;
+                    has_strong_neighbor = true;
+                    break;
+                }
             }
-
-            if (value < previous || value < next)
-                value = 0;
         }
+        if (!has_strong_neighbor)
+            value = 0;
     }
+
+    // 写回结果到全局内存
+    img[y * step + x] = value;
 }
 
 // 双阈值处理：根据低/高阈值确定边缘像素
-void double_threshold(cv::Mat &img_out, const int &low, const int &high) 
-{
+void double_threshold(cv::Mat &img_out, const int &low, const int &high) {
     assert(low >= 0 && high >= 0 && low <= high);
-    
-    int row_minus_1 = img_out.rows - 1;
-    int col_minus_1 = img_out.cols - 1;
-    
-    for (int i = 1; i < row_minus_1; ++i) {
-        for (int j = 1; j < col_minus_1; ++j) {
-            uchar &value = img_out.at<uchar>(i, j);
-            bool changed = false;
-            if (value < low)
-                value = 0;
-            else if (value > high)
-                value = 255;
-            else {
-                for (int m = -1; m <= 1; ++m) {
-                    for (int n = -1; n <= 1; ++n) {
-                        if (m == 0 && n == 0)
-                            continue;
-                        if (img_out.at<uchar>(i + m, j + n) > high) {
-                            value = 255;
-                            changed = true;
-                            break;
-                        }
-                    }
-                    if (changed)
-                        break;
-                }
-                if (!changed)
-                    value = 0;
-            }
-        }
-    }
+    assert(img_out.type() == CV_8UC1);
+
+    uchar *d_img;
+    size_t img_size = img_out.rows * img_out.step;
+
+    cudaMalloc(&d_img, img_size);
+    cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
+
+    dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
+    dim3 grid((img_out.cols + block.x - 1) / block.x,
+              (img_out.rows + block.y - 1) / block.y);
+
+    double_threshold_kernel<<<grid, block>>>(d_img, img_out.cols, img_out.rows, low, high, img_out.step);
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
+    cudaFree(d_img);
 }
 
 // Canny 边缘检测：调用 CUDA 计算梯度，然后进行非极大值抑制和双阈值处理
