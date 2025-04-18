@@ -69,42 +69,60 @@ void Gradient_image(const cv::Mat &img_src,
 }
 
 // CUDA 核函数：每个线程处理图像中一个非边界像素
-__global__ void GradientImageKernel(const unsigned char* src, 
-                                      unsigned char* dst, 
-                                      float* angle, 
-                                      int rows, int cols, 
-                                      int step)
-{
-    // 计算线程对应的 (i, j) 像素位置
-    int j = blockIdx.x * blockDim.x + threadIdx.x;
-    int i = blockIdx.y * blockDim.y + threadIdx.y;
-    
-    // 忽略边界像素，避免越界
-    if (i < 1 || i >= rows - 1 || j < 1 || j >= cols - 1)
-        return;
-    
-    int index = i * step + j;
+__global__ void GradientImageKernel(const unsigned char* src, unsigned char* dst, float* angle, int rows, int cols, int step){
+    // 全局坐标
+    int tx = threadIdx.x, ty = threadIdx.y;
+    int bx = blockIdx.x, by = blockIdx.y;
+    int j = bx * blockDim.x + tx;
+    int i = by * blockDim.y + ty;
+    // 边界上跳过
+    if (i < 1 || i >= rows-1 || j < 1 || j >= cols-1) return;
 
-    // 读取 3×3 邻域内的像素
-    unsigned char pixel_00 = src[(i - 1) * step + (j - 1)];
-    unsigned char pixel_01 = src[(i - 1) * step + j];
-    unsigned char pixel_02 = src[(i - 1) * step + (j + 1)];
-    unsigned char pixel_10 = src[i * step + (j - 1)];
-    unsigned char pixel_12 = src[i * step + (j + 1)];
-    unsigned char pixel_20 = src[(i + 1) * step + (j - 1)];
-    unsigned char pixel_21 = src[(i + 1) * step + j];
-    unsigned char pixel_22 = src[(i + 1) * step + (j + 1)];
+    // tile 宽度（含两条 halo）
+    int Sx = blockDim.x + 2;
+    // shared 内存一维数组
+    extern __shared__ unsigned char sh_src[];
+    // tile 内局部坐标，加 1 是因为留出 halo
+    int si = ty + 1;
+    int sj = tx + 1;
 
-    // 使用 Sobel 算子计算水平和垂直梯度
-    float grad_x = pixel_02 + (2 * pixel_12) + pixel_22 - pixel_00 - (2 * pixel_10) - pixel_20;
-    float grad_y = pixel_00 + (2 * pixel_01) + pixel_02 - pixel_20 - (2 * pixel_21) - pixel_22;
-    
-    // 计算梯度幅值
-    float grad = sqrtf(grad_x * grad_x + grad_y * grad_y);
-    dst[index] = (unsigned char)grad;
-    
-    // 计算梯度方向，使用 atan2f，更稳健；当 grad_x == 0 时，用极小值代替
-    angle[i * cols + j] = atan2f(grad_y, (grad_x == 0 ? 0.00001f : grad_x));
+    // 1) preload 自己的中心像素
+    sh_src[si * Sx + sj] = src[i * step + j];
+
+    // 2) preload 上下左右四条 halo
+    if (ty == 0)                 
+        sh_src[0 * Sx + sj] = src[(i-1) * step + j];
+    if (ty == blockDim.y - 1)    
+        sh_src[(Sx * (blockDim.y + 1)) + sj] = src[(i + 1) * step + j];
+    if (tx == 0)                 
+        sh_src[si * Sx + 0] = src[i * step + (j - 1)];
+    if (tx == blockDim.x - 1)    
+        sh_src[si * Sx + (blockDim.x+1)] = src[i * step + (j+1)];
+
+    // 3) preload 四个角落
+    if (ty==0 && tx==0)                         
+        sh_src[0 * Sx + 0] = src[(i-1)*step + (j-1)];
+    if (ty==0 && tx==blockDim.x-1) 
+        sh_src[0 * Sx + (blockDim.x + 1)] = src[(i - 1) * step + (j + 1)];
+    if (ty==blockDim.y-1 && tx==0)              
+        sh_src[(blockDim.y + 1) * Sx + 0] = src[(i + 1) * step + (j - 1)];
+    if (ty==blockDim.y-1 && tx==blockDim.x-1)   
+        sh_src[(blockDim.y + 1) * Sx + (blockDim.x + 1)]  = src[(i + 1) * step + (j + 1)];
+
+    // 等所有线程把 tile 和 halo 都搬进来
+    __syncthreads();
+
+    // 4) 从 shared memory 取 3×3 邻域
+    auto at = [&](int di, int dj){
+      return sh_src[(si+di)*Sx + (sj+dj)];
+    };
+    float grad_x = at(-1, +1) + 2 * at(0, +1) + at(+1, +1) - at(-1, -1) - 2 * at(0, -1) - at(+1, -1);
+    float grad_y = at(-1, -1) + 2 * at(-1, 0) + at(-1, +1) - at(+1, -1) - 2 * at(+1, 0) - at(+1, +1);
+
+    float g = sqrtf(grad_x * grad_x + grad_y * grad_y);
+    int  idx = i * step + j;
+    dst[idx]   = (unsigned char)g;
+    angle[idx] = atan2f(grad_y, (grad_x==0?1e-5f:grad_x));
 }
 
 // 主机端 CUDA 包装函数：调用核函数计算梯度
@@ -136,8 +154,11 @@ void Gradient_image_cuda(const cv::Mat &img_src,
     dim3 block(16, 16);
     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
-    // 启动 CUDA 核函数
-    GradientImageKernel<<<grid, block>>>(d_src, d_dst, d_angle, rows, cols, step);
+    // // 启动 CUDA 核函数
+    // GradientImageKernel<<<grid, block>>>(d_src, d_dst, d_angle, rows, cols, step);
+    size_t shared_bytes = (block.y + 2) * (block.x + 2) * sizeof(unsigned char);
+
+    GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_dst, d_angle, rows, cols, step);
     cudaDeviceSynchronize();
 
     // 将结果复制回主机内存
