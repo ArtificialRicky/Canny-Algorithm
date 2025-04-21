@@ -9,6 +9,9 @@ typedef unsigned char uchar;
 #define SHMEM_WIDTH (BLOCK_WIDTH + 2)
 #define SHMEM_HEIGHT (BLOCK_HEIGHT + 2)
 
+__device__ __forceinline__ int clamp_int(int v, int lo, int hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
 
 __device__ bool is_45(float Angle) {
     return (Angle > 0 && Angle <= 45) || (Angle > 180 && Angle <= 225);
@@ -29,7 +32,8 @@ __device__ bool is_180(float Angle) {
 __global__ void non_maximum_suppression_kernel(
     unsigned char* img, const float* angle, int rows, int cols, int step)
 {   
-    __shared__ uchar sh_img[SHMEM_HEIGHT][SHMEM_WIDTH];
+    #define PAD 14
+    __shared__ uchar sh_img[SHMEM_HEIGHT][SHMEM_WIDTH + PAD];
 
     int tx = threadIdx.x;
     int ty = threadIdx.y;
@@ -39,29 +43,48 @@ __global__ void non_maximum_suppression_kernel(
     int j = bx * BLOCK_WIDTH + tx;
 
     // load to shared memory
+    // if (i < rows && j < cols) {
+    //     // center
+    //     sh_img[ty + 1][tx + 1] = img[i * step + j];
+    //     // left & right halo
+    //     if (tx == 0 && j > 0)
+    //         sh_img[ty + 1][0] = img[i * step + (j - 1)];
+    //     if (tx == BLOCK_WIDTH - 1 && j < cols - 1)
+    //         sh_img[ty + 1][SHMEM_WIDTH - 1] = img[i * step + (j + 1)];
+    //     // up & down halo
+    //     if (ty == 0 && i > 0)
+    //         sh_img[0][tx + 1] = img[(i - 1) * step + j];
+    //     if (ty == BLOCK_HEIGHT - 1 && i < rows - 1)
+    //         sh_img[SHMEM_HEIGHT - 1][tx + 1] = img[(i + 1) * step + j];
+    //     // the four corners
+    //     if (tx == 0 && ty == 0 && i > 0 && j > 0)
+    //         sh_img[0][0] = img[(i - 1) * step + (j - 1)];
+    //     if (tx == 0 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j > 0)
+    //         sh_img[SHMEM_HEIGHT - 1][0] = img[(i + 1) * step + (j - 1)];
+    //     if (tx == BLOCK_WIDTH - 1 && ty == 0 && i > 0 && j < cols - 1)
+    //         sh_img[0][SHMEM_WIDTH - 1] = img[(i - 1) * step + (j + 1)];
+    //     if (tx == BLOCK_WIDTH - 1 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j < cols - 1)
+    //         sh_img[SHMEM_HEIGHT - 1][SHMEM_WIDTH - 1] = img[(i + 1) * step + (j + 1)];
+    // }
     if (i < rows && j < cols) {
-        // center
-        sh_img[ty + 1][tx + 1] = img[i * step + j];
-        // left & right halo
-        if (tx == 0 && j > 0)
-            sh_img[ty + 1][0] = img[i * step + (j - 1)];
-        if (tx == BLOCK_WIDTH - 1 && j < cols - 1)
-            sh_img[ty + 1][SHMEM_WIDTH - 1] = img[i * step + (j + 1)];
-        // up & down halo
-        if (ty == 0 && i > 0)
-            sh_img[0][tx + 1] = img[(i - 1) * step + j];
-        if (ty == BLOCK_HEIGHT - 1 && i < rows - 1)
-            sh_img[SHMEM_HEIGHT - 1][tx + 1] = img[(i + 1) * step + j];
-        // the four corners
-        if (tx == 0 && ty == 0 && i > 0 && j > 0)
-            sh_img[0][0] = img[(i - 1) * step + (j - 1)];
-        if (tx == 0 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j > 0)
-            sh_img[SHMEM_HEIGHT - 1][0] = img[(i + 1) * step + (j - 1)];
-        if (tx == BLOCK_WIDTH - 1 && ty == 0 && i > 0 && j < cols - 1)
-            sh_img[0][SHMEM_WIDTH - 1] = img[(i - 1) * step + (j + 1)];
-        if (tx == BLOCK_WIDTH - 1 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j < cols - 1)
-            sh_img[SHMEM_HEIGHT - 1][SHMEM_WIDTH - 1] = img[(i + 1) * step + (j + 1)];
+        int j4 = (j / 4) * 4;
+        // 从全局读一组 4 个像素
+        uchar4 pix4 = reinterpret_cast<const uchar4*>(img + i * step + j4)[0];
+        // 拆解出当前线程对应的那一个
+        sh_img[ty + 1][tx + 1] = reinterpret_cast<uchar*>(&pix4)[j - j4];
+
+        // Predication：无分支加载 3×3 区域 (含 halo) 到 Shared Memory
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                if (dy == 0 && dx == 0) continue;
+                int gi = clamp_int(i + dy, 0, rows - 1);
+                int gj = clamp_int(j + dx, 0, cols - 1);
+                sh_img[ty + 1 + dy][tx + 1 + dx] = img[gi * step + gj];
+            }
+        }
     }
+    __syncthreads();
+
     __syncthreads();
 
     if (i < 1 || j < 1 || i >= rows - 1 || j >= cols - 1) return;
