@@ -10,7 +10,7 @@
 
 
 #define BLOCK_SIZE_X 16
-#define BLOCK_SIZE_Y 16
+#define BLOCK_SIZE_Y 4
 #define BLOCK_WIDTH 16
 #define BLOCK_HEIGHT 16
 #define SHMEM_WIDTH (BLOCK_WIDTH + 2)
