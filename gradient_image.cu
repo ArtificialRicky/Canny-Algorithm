@@ -300,25 +300,88 @@ void double_threshold(cv::Mat &img_out, const int &low, const int &high) {
 }
 
 // Canny 边缘检测：调用 CUDA 计算梯度，然后进行非极大值抑制和双阈值处理
-void Canny(const cv::Mat &img_src, cv::Mat &img_out,
-           const int &low_threshold, const int &high_threshold) 
+// ====================== 新增：统一 GPU Pipeline =========================
+void Canny_cuda(const cv::Mat &img_src,
+    cv::Mat &img_out,
+    int low_threshold,
+    int high_threshold)
 {
-    assert(low_threshold <= high_threshold);
-    cv::Mat_<float> angle;
+CV_Assert(low_threshold <= high_threshold);
+const int rows = img_src.rows, cols = img_src.cols;
+const size_t step       = img_src.step;          // 每行字节数
+const size_t img_bytes  = rows * step;           // uchar 图像字节
+const size_t ang_bytes  = rows * cols * sizeof(float);
 
-    int64 t1 = cv::getTickCount();
-    Gradient_image_cuda(img_src, img_out, angle);
-    // Gradient_image(img_src, img_out, angle);
-    int64 t2 = cv::getTickCount();
-    std::cout << "Gradient_image_cuda: " << (t2 - t1) / cv::getTickFrequency() << " sec\n";
+// -------- 1. 申请显存并拷入原图 ----------
+unsigned char *d_src  = nullptr;   // 只读原图
+unsigned char *d_mag  = nullptr;   // 梯度幅值 / NMS / 双阈值共用缓冲
+float         *d_ang  = nullptr;   // 梯度方向
+cudaMalloc(&d_src, img_bytes);
+cudaMalloc(&d_mag, img_bytes);
+cudaMalloc(&d_ang, ang_bytes);
+cudaMemcpy(d_src, img_src.data, img_bytes, cudaMemcpyHostToDevice);
 
-    non_maximum_suppression(img_out, angle);
-    int64 t3 = cv::getTickCount();
-    std::cout << "non_maximum_suppression: " << (t3 - t2) / cv::getTickFrequency() << " sec\n";
+dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
+dim3 grid((cols + block.x - 1) / block.x,
+  (rows + block.y - 1) / block.y);
+size_t shared_bytes = (block.y + 2) * (block.x + 2) * sizeof(unsigned char);
 
-    double_threshold(img_out, low_threshold, high_threshold);
-    int64 t4 = cv::getTickCount();
-    std::cout << "double_threshold: " << (t4 - t3) / cv::getTickFrequency() << " sec\n";
+// -------- 2. 计时用 CUDA events ----------
+cudaEvent_t e0,e1,e2,e3;                       // e0‑e1 grad, e1‑e2 nms, e2‑e3 threshold
+cudaEventCreate(&e0); cudaEventCreate(&e1);
+cudaEventCreate(&e2); cudaEventCreate(&e3);
 
-    std::cout << "Total Canny time: " << (t4 - t1) / cv::getTickFrequency() << " sec\n";
+// -------- 3‑A. 梯度计算 ----------
+cudaEventRecord(e0);
+GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_mag, d_ang, rows, cols, step);
+// cudaDeviceSynchronize();
+cudaEventRecord(e1);
+
+// -------- 3‑B. 非极大值抑制 ----------
+non_maximum_suppression_kernel<<<grid, block>>>(d_mag, d_ang, rows, cols, step);
+cudaEventRecord(e2);
+
+// -------- 3‑C. 双阈值 ----------
+double_threshold_kernel<<<grid, block>>>(d_mag, cols, rows,
+                                 low_threshold, high_threshold, step);
+cudaEventRecord(e3);
+cudaDeviceSynchronize();
+
+// -------- 4. 取回结果 ----------
+img_out.create(rows, cols, CV_8UC1);
+cudaMemcpy(img_out.data, d_mag, img_bytes, cudaMemcpyDeviceToHost);
+
+// -------- 5. 打印计时 ----------
+float t_grad=0.f, t_nms=0.f, t_thr=0.f, t_total=0.f;
+cudaEventElapsedTime(&t_grad , e0, e1);   // ms
+cudaEventElapsedTime(&t_nms  , e1, e2);
+cudaEventElapsedTime(&t_thr  , e2, e3);
+cudaEventElapsedTime(&t_total, e0, e3);
+// std::cout << std::fixed << std::setprecision(3);
+std::cout << "Gradient kernel   : " << t_grad  << " ms\n";
+std::cout << "NMS kernel        : " << t_nms   << " ms\n";
+std::cout << "Threshold kernel  : " << t_thr   << " ms\n";
+std::cout << "Total GPU stage   : " << t_total << " ms\n";
+
+// -------- 6. 释放资源 ----------
+cudaFree(d_src);
+cudaFree(d_mag);
+cudaFree(d_ang);
+cudaEventDestroy(e0); cudaEventDestroy(e1);
+cudaEventDestroy(e2); cudaEventDestroy(e3);
+}
+// =======================================================================
+
+
+
+// ================== **接口细节改动** ==================
+// 1. non_maximum_suppression_kernel & double_threshold_kernel *不变*
+//    只是把之前 host‑side 的包装函数删掉，直接在上面连续 launch。
+// 2. 原来的 Gradient_image_cuda 仍可保留做 CPU/GPU 对照；
+//    生产代码请直接调用 Canny_cuda() 以避免多次 memcpy。
+// 3. 旧版 Canny() 可替换为：
+void Canny(const cv::Mat &src, cv::Mat &dst,
+      const int &low_th, const int &high_th)
+{
+Canny_cuda(src, dst, low_th, high_th);
 }
