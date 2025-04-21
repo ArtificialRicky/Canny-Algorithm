@@ -11,6 +11,10 @@
 
 #define BLOCK_SIZE_X 16
 #define BLOCK_SIZE_Y 16
+#define BLOCK_WIDTH 16
+#define BLOCK_HEIGHT 16
+#define SHMEM_WIDTH (BLOCK_WIDTH + 2)
+#define SHMEM_HEIGHT (BLOCK_HEIGHT + 2)
 
 // 定义角度阈值判断函数
 __device__ bool is_45(float Angle) {
@@ -174,33 +178,64 @@ void Gradient_image_cuda(const cv::Mat &img_src,
 // 非极大值抑制：仅保留局部极大值
 __global__ void non_maximum_suppression_kernel(
     unsigned char* img, const float* angle, int rows, int cols, int step)
-{
-    int i = blockIdx.y * blockDim.y + threadIdx.y;
-    int j = blockIdx.x * blockDim.x + threadIdx.x;
+{   
+    __shared__ uchar sh_img[SHMEM_HEIGHT][SHMEM_WIDTH];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int i = by * BLOCK_HEIGHT + ty;
+    int j = bx * BLOCK_WIDTH + tx;
+
+    // load to shared memory
+    if (i < rows && j < cols) {
+        // center
+        sh_img[ty + 1][tx + 1] = img[i * step + j];
+        // left & right halo
+        if (tx == 0 && j > 0)
+            sh_img[ty + 1][0] = img[i * step + (j - 1)];
+        if (tx == BLOCK_WIDTH - 1 && j < cols - 1)
+            sh_img[ty + 1][SHMEM_WIDTH - 1] = img[i * step + (j + 1)];
+        // up & down halo
+        if (ty == 0 && i > 0)
+            sh_img[0][tx + 1] = img[(i - 1) * step + j];
+        if (ty == BLOCK_HEIGHT - 1 && i < rows - 1)
+            sh_img[SHMEM_HEIGHT - 1][tx + 1] = img[(i + 1) * step + j];
+        // the four corners
+        if (tx == 0 && ty == 0 && i > 0 && j > 0)
+            sh_img[0][0] = img[(i - 1) * step + (j - 1)];
+        if (tx == 0 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j > 0)
+            sh_img[SHMEM_HEIGHT - 1][0] = img[(i + 1) * step + (j - 1)];
+        if (tx == BLOCK_WIDTH - 1 && ty == 0 && i > 0 && j < cols - 1)
+            sh_img[0][SHMEM_WIDTH - 1] = img[(i - 1) * step + (j + 1)];
+        if (tx == BLOCK_WIDTH - 1 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j < cols - 1)
+            sh_img[SHMEM_HEIGHT - 1][SHMEM_WIDTH - 1] = img[(i + 1) * step + (j + 1)];
+    }
+    __syncthreads();
 
     if (i < 1 || j < 1 || i >= rows - 1 || j >= cols - 1) return;
 
-    int idx = i * step + j;
     float Angle = angle[i * cols + j];
-    uchar value = img[idx];
+    uchar value = sh_img[ty + 1][tx + 1];
     uchar previous = 0, next = 0;
 
     if (is_45(Angle)) {
-        previous = img[(i - 1) * step + (j + 1)];
-        next = img[(i + 1) * step + (j - 1)];
+        previous = sh_img[ty][tx + 2];    // (i-1, j+1)
+        next     = sh_img[ty + 2][tx];     // (i+1, j-1)
     } else if (is_90(Angle)) {
-        previous = img[(i - 1) * step + j];
-        next = img[(i + 1) * step + j];
+        previous = sh_img[ty][tx + 1];    // (i-1, j)
+        next     = sh_img[ty + 2][tx + 1]; // (i+1, j)
     } else if (is_135(Angle)) {
-        previous = img[(i - 1) * step + (j - 1)];
-        next = img[(i + 1) * step + (j + 1)];
+        previous = sh_img[ty][tx];         // (i-1, j-1)
+        next     = sh_img[ty + 2][tx + 2]; // (i+1, j+1)
     } else if (is_180(Angle)) {
-        previous = img[i * step + (j - 1)];
-        next = img[i * step + (j + 1)];
+        previous = sh_img[ty + 1][tx];     // (i, j-1)
+        next     = sh_img[ty + 1][tx + 2]; // (i, j+1)
     }
 
     if (value < previous || value < next)
-        img[idx] = 0;
+        img[i * step + j] = 0;
 }
 
 void non_maximum_suppression(cv::Mat &img_out, const cv::Mat_<float> &angle)
@@ -334,18 +369,19 @@ cudaEventCreate(&e2); cudaEventCreate(&e3);
 // -------- 3‑A. 梯度计算 ----------
 cudaEventRecord(e0);
 GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_mag, d_ang, rows, cols, step);
-// cudaDeviceSynchronize();
+cudaDeviceSynchronize();
 cudaEventRecord(e1);
 
 // -------- 3‑B. 非极大值抑制 ----------
 non_maximum_suppression_kernel<<<grid, block>>>(d_mag, d_ang, rows, cols, step);
+cudaDeviceSynchronize();
 cudaEventRecord(e2);
 
 // -------- 3‑C. 双阈值 ----------
 double_threshold_kernel<<<grid, block>>>(d_mag, cols, rows,
                                  low_threshold, high_threshold, step);
-cudaEventRecord(e3);
 cudaDeviceSynchronize();
+cudaEventRecord(e3);
 
 // -------- 4. 取回结果 ----------
 img_out.create(rows, cols, CV_8UC1);
