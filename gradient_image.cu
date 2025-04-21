@@ -83,7 +83,8 @@ __global__ void GradientImageKernel(const unsigned char* src, unsigned char* dst
     if (i < 1 || i >= rows-1 || j < 1 || j >= cols-1) return;
 
     // tile 宽度（含两条 halo）
-    int Sx = blockDim.x + 2;
+    // int Sx = blockDim.x + 2;
+    int Sx = SHMEM_WIDTH;
     // shared 内存一维数组
     extern __shared__ unsigned char sh_src[];
     // tile 内局部坐标，加 1 是因为留出 halo
