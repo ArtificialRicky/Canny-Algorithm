@@ -66,34 +66,6 @@ void Gradient_image(const cv::Mat &img_src,
     }
 }
 
-// void non_maximum_suppression_cuda(cv::Mat &img_out, const cv::Mat_<float> &angle)
-// {
-//     int rows = img_out.rows;
-//     int cols = img_out.cols;
-//     int step = img_out.step;
-
-//     size_t img_size = rows * step * sizeof(uchar);
-//     size_t angle_size = rows * cols * sizeof(float);
-
-//     uchar *d_img;
-//     float *d_angle;
-
-//     cudaMalloc((void**)&d_img, img_size);
-//     cudaMalloc((void**)&d_angle, angle_size);
-
-//     cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
-//     cudaMemcpy(d_angle, angle.ptr<float>(), angle_size, cudaMemcpyHostToDevice);
-
-//     dim3 block(16, 16);
-//     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
-//     non_maximum_suppression_kernel<<<grid, block>>>(d_img, d_angle, rows, cols, step);
-//     cudaDeviceSynchronize();
-
-//     cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
-//     cudaFree(d_img);
-//     cudaFree(d_angle);
-// }
-
 
 void non_maximum_suppression(cv::Mat &img_out,            // image has been gradiented first
                              const cv::Mat_<float> &angle)     // image which store angel
@@ -182,6 +154,7 @@ void Canny(const cv::Mat &img_src,
     std::cout << "Gradient_image: " << (t2 - t1) / cv::getTickFrequency() << " sec\n";
 
     non_maximum_suppression_cuda(img_out, angle);
+    // non_maximum_suppression(img_out, angle);
 
     int64 t3 = cv::getTickCount();
     std::cout << "non_maximum_suppression cuda: " << (t3 - t2) / cv::getTickFrequency() << " sec\n";
