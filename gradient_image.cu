@@ -9,12 +9,10 @@
 #include <math.h>
 
 
-#define BLOCK_SIZE_X 16
-#define BLOCK_SIZE_Y 16
-#define BLOCK_WIDTH 16
-#define BLOCK_HEIGHT 16
-#define SHMEM_WIDTH (BLOCK_WIDTH + 2)
-#define SHMEM_HEIGHT (BLOCK_HEIGHT + 2)
+#define BLOCK_SIZE_X 32
+#define BLOCK_SIZE_Y 4
+#define SHMEM_WIDTH (BLOCK_SIZE_X + 2)
+#define SHMEM_HEIGHT (BLOCK_SIZE_Y + 2)
 
 // 定义角度阈值判断函数
 __device__ bool is_45(float Angle) {
@@ -73,7 +71,7 @@ void Gradient_image(const cv::Mat &img_src,
 }
 
 // CUDA 核函数：每个线程处理图像中一个非边界像素
-__global__ void GradientImageKernel(const unsigned char* src, unsigned char* dst, float* angle, int rows, int cols, int step){
+__global__ void GradientImageKernel(const float* src, float* dst, float* angle, int rows, int cols, int step){
     // 全局坐标
     int tx = threadIdx.x, ty = threadIdx.y;
     int bx = blockIdx.x, by = blockIdx.y;
@@ -85,7 +83,7 @@ __global__ void GradientImageKernel(const unsigned char* src, unsigned char* dst
     // tile 宽度（含两条 halo）
     int Sx = blockDim.x + 2;
     // shared 内存一维数组
-    extern __shared__ unsigned char sh_src[];
+    extern __shared__ float sh_src[];
     // tile 内局部坐标，加 1 是因为留出 halo
     int si = ty + 1;
     int sj = tx + 1;
@@ -125,68 +123,68 @@ __global__ void GradientImageKernel(const unsigned char* src, unsigned char* dst
 
     float g = sqrtf(grad_x * grad_x + grad_y * grad_y);
     int  idx = i * step + j;
-    dst[idx]   = (unsigned char)g;
+    dst[idx]   = (float)g;
     angle[idx] = atan2f(grad_y, (grad_x==0?1e-5f:grad_x));
 }
 
 // 主机端 CUDA 包装函数：调用核函数计算梯度
-void Gradient_image_cuda(const cv::Mat &img_src,
-                         cv::Mat &img_out,
-                         cv::Mat_<float> &angle)
-{
-    int rows = img_src.rows;
-    int cols = img_src.cols;
-    size_t step = img_src.step; // 每行字节数
+// void Gradient_image_cuda(const cv::Mat &img_src,
+//                          cv::Mat &img_out,
+//                          cv::Mat_<float> &angle)
+// {
+//     int rows = img_src.rows;
+//     int cols = img_src.cols;
+//     size_t step = img_src.step; // 每行字节数
 
-    // 初始化输出图像和角度矩阵
-    img_out.create(rows, cols, CV_8UC1);
-    angle.create(rows, cols);
+//     // 初始化输出图像和角度矩阵
+//     img_out.create(rows, cols, CV_8UC1);
+//     angle.create(rows, cols);
 
-    // 申请设备内存
-    unsigned char *d_src = nullptr, *d_dst = nullptr;
-    float *d_angle = nullptr;
-    size_t img_size = rows * step;
+//     // 申请设备内存
+//     unsigned char *d_src = nullptr, *d_dst = nullptr;
+//     float *d_angle = nullptr;
+//     size_t img_size = rows * step;
 
-    cudaMalloc((void**)&d_src, img_size);
-    cudaMalloc((void**)&d_dst, img_size);
-    cudaMalloc((void**)&d_angle, rows * cols * sizeof(float));
+//     cudaMalloc((void**)&d_src, img_size);
+//     cudaMalloc((void**)&d_dst, img_size);
+//     cudaMalloc((void**)&d_angle, rows * cols * sizeof(float));
 
-    // 将输入图像数据复制到设备内存
-    cudaMemcpy(d_src, img_src.data, img_size, cudaMemcpyHostToDevice);
+//     // 将输入图像数据复制到设备内存
+//     cudaMemcpy(d_src, img_src.data, img_size, cudaMemcpyHostToDevice);
 
-    // 定义线程块和网格尺寸
-    dim3 block(16, 16);
-    dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
+//     // 定义线程块和网格尺寸
+//     dim3 block(16, 16);
+//     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
 
-    // // 启动 CUDA 核函数
-    // GradientImageKernel<<<grid, block>>>(d_src, d_dst, d_angle, rows, cols, step);
-    size_t shared_bytes = (block.y + 2) * (block.x + 2) * sizeof(unsigned char);
+//     // // 启动 CUDA 核函数
+//     // GradientImageKernel<<<grid, block>>>(d_src, d_dst, d_angle, rows, cols, step);
+//     size_t shared_bytes = (block.y + 2) * (block.x + 2) * sizeof(unsigned char);
 
-    GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_dst, d_angle, rows, cols, step);
-    cudaDeviceSynchronize();
+//     GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_dst, d_angle, rows, cols, step);
+//     cudaDeviceSynchronize();
 
-    // 将结果复制回主机内存
-    cudaMemcpy(img_out.data, d_dst, img_size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(angle.data, d_angle, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
+//     // 将结果复制回主机内存
+//     cudaMemcpy(img_out.data, d_dst, img_size, cudaMemcpyDeviceToHost);
+//     cudaMemcpy(angle.data, d_angle, rows * cols * sizeof(float), cudaMemcpyDeviceToHost);
 
-    // 释放设备内存
-    cudaFree(d_src);
-    cudaFree(d_dst);
-    cudaFree(d_angle);
-}
+//     // 释放设备内存
+//     cudaFree(d_src);
+//     cudaFree(d_dst);
+//     cudaFree(d_angle);
+// }
 
 // 非极大值抑制：仅保留局部极大值
 __global__ void non_maximum_suppression_kernel(
-    unsigned char* img, const float* angle, int rows, int cols, int step)
+    float* img, const float* angle, int rows, int cols, int step)
 {   
-    __shared__ uchar sh_img[SHMEM_HEIGHT][SHMEM_WIDTH];
+    __shared__ float sh_img[SHMEM_HEIGHT][SHMEM_WIDTH];
 
     int tx = threadIdx.x;
     int ty = threadIdx.y;
     int bx = blockIdx.x;
     int by = blockIdx.y;
-    int i = by * BLOCK_HEIGHT + ty;
-    int j = bx * BLOCK_WIDTH + tx;
+    int i = by * BLOCK_SIZE_Y + ty;
+    int j = bx * BLOCK_SIZE_X + tx;
 
     // load to shared memory
     if (i < rows && j < cols) {
@@ -195,21 +193,21 @@ __global__ void non_maximum_suppression_kernel(
         // left & right halo
         if (tx == 0 && j > 0)
             sh_img[ty + 1][0] = img[i * step + (j - 1)];
-        if (tx == BLOCK_WIDTH - 1 && j < cols - 1)
+        if (tx == BLOCK_SIZE_X - 1 && j < cols - 1)
             sh_img[ty + 1][SHMEM_WIDTH - 1] = img[i * step + (j + 1)];
         // up & down halo
         if (ty == 0 && i > 0)
             sh_img[0][tx + 1] = img[(i - 1) * step + j];
-        if (ty == BLOCK_HEIGHT - 1 && i < rows - 1)
+        if (ty == BLOCK_SIZE_Y - 1 && i < rows - 1)
             sh_img[SHMEM_HEIGHT - 1][tx + 1] = img[(i + 1) * step + j];
         // the four corners
         if (tx == 0 && ty == 0 && i > 0 && j > 0)
             sh_img[0][0] = img[(i - 1) * step + (j - 1)];
-        if (tx == 0 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j > 0)
+        if (tx == 0 && ty == BLOCK_SIZE_Y - 1 && i < rows - 1 && j > 0)
             sh_img[SHMEM_HEIGHT - 1][0] = img[(i + 1) * step + (j - 1)];
-        if (tx == BLOCK_WIDTH - 1 && ty == 0 && i > 0 && j < cols - 1)
+        if (tx == BLOCK_SIZE_X - 1 && ty == 0 && i > 0 && j < cols - 1)
             sh_img[0][SHMEM_WIDTH - 1] = img[(i - 1) * step + (j + 1)];
-        if (tx == BLOCK_WIDTH - 1 && ty == BLOCK_HEIGHT - 1 && i < rows - 1 && j < cols - 1)
+        if (tx == BLOCK_SIZE_X - 1 && ty == BLOCK_SIZE_Y - 1 && i < rows - 1 && j < cols - 1)
             sh_img[SHMEM_HEIGHT - 1][SHMEM_WIDTH - 1] = img[(i + 1) * step + (j + 1)];
     }
     __syncthreads();
@@ -238,42 +236,42 @@ __global__ void non_maximum_suppression_kernel(
         img[i * step + j] = 0;
 }
 
-void non_maximum_suppression(cv::Mat &img_out, const cv::Mat_<float> &angle)
-{
-    int rows = img_out.rows;
-    int cols = img_out.cols;
-    int step = img_out.step;
+// void non_maximum_suppression(cv::Mat &img_out, const cv::Mat_<float> &angle)
+// {
+//     int rows = img_out.rows;
+//     int cols = img_out.cols;
+//     int step = img_out.step;
 
-    size_t img_size = rows * step * sizeof(uchar);
-    size_t angle_size = rows * cols * sizeof(float);
+//     size_t img_size = rows * step * sizeof(uchar);
+//     size_t angle_size = rows * cols * sizeof(float);
 
-    uchar *d_img;
-    float *d_angle;
+//     uchar *d_img;
+//     float *d_angle;
 
-    cudaMalloc(&d_img, img_size);
-    cudaMalloc(&d_angle, angle_size);
+//     cudaMalloc(&d_img, img_size);
+//     cudaMalloc(&d_angle, angle_size);
 
-    cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_angle, angle.ptr<float>(), angle_size, cudaMemcpyHostToDevice);
+//     cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
+//     cudaMemcpy(d_angle, angle.ptr<float>(), angle_size, cudaMemcpyHostToDevice);
 
-    dim3 block(16, 16);
-    dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
-    non_maximum_suppression_kernel<<<grid, block>>>(d_img, d_angle, rows, cols, step);
-    cudaDeviceSynchronize();
+//     dim3 block(16, 16);
+//     dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
+//     non_maximum_suppression_kernel<<<grid, block>>>(d_img, d_angle, rows, cols, step);
+//     cudaDeviceSynchronize();
 
-    cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
-    cudaFree(d_img);
-    cudaFree(d_angle);
-}
+//     cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
+//     cudaFree(d_img);
+//     cudaFree(d_angle);
+// }
 
-__global__ void double_threshold_kernel(uchar *img, int width, int height, int low, int high, int step)
+__global__ void double_threshold_kernel(float *img, int width, int height, float low, float high, int step)
 {
     // 注意：这个版本假设核函数只处理内部区域，不访问图像边界像素
     int x = blockIdx.x * blockDim.x + threadIdx.x + 1;
     int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
     // 为了使用简单边界，分配 tile 比实际 block 大两列两行
-    __shared__ uchar tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 2];
+    __shared__ float tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 2];
 
     int local_x = threadIdx.x + 1;
     int local_y = threadIdx.y + 1;
@@ -285,7 +283,7 @@ __global__ void double_threshold_kernel(uchar *img, int width, int height, int l
     __syncthreads();
 
     // 仅处理内部区域像素，不处理边界（已通过传参或 grid 配置排除）
-    uchar value = tile[local_y][local_x];
+    float value = tile[local_y][local_x];
     if (value < low) {
         value = 0;
     } else if (value > high) {
@@ -313,102 +311,149 @@ __global__ void double_threshold_kernel(uchar *img, int width, int height, int l
 }
 
 // 双阈值处理：根据低/高阈值确定边缘像素
-void double_threshold(cv::Mat &img_out, const int &low, const int &high) {
-    assert(low >= 0 && high >= 0 && low <= high);
-    assert(img_out.type() == CV_8UC1);
+// void double_threshold(cv::Mat &img_out, const int &low, const int &high) {
+//     assert(low >= 0 && high >= 0 && low <= high);
+//     assert(img_out.type() == CV_8UC1);
 
-    uchar *d_img;
-    size_t img_size = img_out.rows * img_out.step;
+//     uchar *d_img;
+//     size_t img_size = img_out.rows * img_out.step;
 
-    cudaMalloc(&d_img, img_size);
-    cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
+//     cudaMalloc(&d_img, img_size);
+//     cudaMemcpy(d_img, img_out.data, img_size, cudaMemcpyHostToDevice);
 
-    dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
-    dim3 grid((img_out.cols + block.x - 1) / block.x,
-              (img_out.rows + block.y - 1) / block.y);
+//     dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
+//     dim3 grid((img_out.cols + block.x - 1) / block.x,
+//               (img_out.rows + block.y - 1) / block.y);
 
-    double_threshold_kernel<<<grid, block>>>(d_img, img_out.cols, img_out.rows, low, high, img_out.step);
-    cudaDeviceSynchronize();
+//     double_threshold_kernel<<<grid, block>>>(d_img, img_out.cols, img_out.rows, low, high, img_out.step);
+//     cudaDeviceSynchronize();
 
-    cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
-    cudaFree(d_img);
-}
+//     cudaMemcpy(img_out.data, d_img, img_size, cudaMemcpyDeviceToHost);
+//     cudaFree(d_img);
+// }
 
 // Canny 边缘检测：调用 CUDA 计算梯度，然后进行非极大值抑制和双阈值处理
 // ====================== 新增：统一 GPU Pipeline =========================
+__global__
+void cast_uchar_to_float(const unsigned char* in, float* out,
+                         int rows, int cols, int step_bytes)
+{
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    if (x < cols && y < rows) {
+        // out 按 cols 紧凑存储
+        out[y*cols + x] = float(in[y*step_bytes + x]);
+    }
+}
+
+__global__
+void cast_float_to_uchar(const float* in, unsigned char* out,
+                         int rows, int cols, int step_bytes)
+{
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    if (x < cols && y < rows) {
+        // 截断回 uchar
+        out[y*step_bytes + x] = (unsigned char)(in[y*cols + x]);
+    }
+}
+// ------------------------------------------------------------------
+
+// 原有 Canny_cuda 改动部分：
 void Canny_cuda(const cv::Mat &img_src,
     cv::Mat &img_out,
     int low_threshold,
     int high_threshold)
 {
 CV_Assert(low_threshold <= high_threshold);
-const int rows = img_src.rows, cols = img_src.cols;
-const size_t step       = img_src.step;          // 每行字节数
-const size_t img_bytes  = rows * step;           // uchar 图像字节
-const size_t ang_bytes  = rows * cols * sizeof(float);
+const int rows    = img_src.rows;
+const int cols    = img_src.cols;
+const int step_u  = img_src.step;           // uchar 每行字节数
+const size_t img_bytes = size_t(rows)*step_u;
+const size_t ang_bytes = size_t(rows)*cols*sizeof(float);
 
-// -------- 1. 申请显存并拷入原图 ----------
-unsigned char *d_src  = nullptr;   // 只读原图
-unsigned char *d_mag  = nullptr;   // 梯度幅值 / NMS / 双阈值共用缓冲
-float         *d_ang  = nullptr;   // 梯度方向
-cudaMalloc(&d_src, img_bytes);
-cudaMalloc(&d_mag, img_bytes);
-cudaMalloc(&d_ang, ang_bytes);
-cudaMemcpy(d_src, img_src.data, img_bytes, cudaMemcpyHostToDevice);
+// —— 1. 申请所有显存 —— 
+unsigned char *d_src_u = nullptr, *d_dst_u = nullptr;
+float         *d_src_f = nullptr,
+      *d_mag_f = nullptr,
+      *d_ang   = nullptr;
+cudaMalloc(&d_src_u,  img_bytes);
+cudaMalloc(&d_dst_u,  img_bytes);
+cudaMalloc(&d_src_f,  rows*cols*sizeof(float));
+cudaMalloc(&d_mag_f,  rows*cols*sizeof(float));
+cudaMalloc(&d_ang,    ang_bytes);
 
+// 拷入原始 uchar 图
+cudaMemcpy(d_src_u, img_src.data, img_bytes, cudaMemcpyHostToDevice);
+
+// —— 2. block/grid 配置 & 共享内存字节数 —— 
 dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
-dim3 grid((cols + block.x - 1) / block.x,
-  (rows + block.y - 1) / block.y);
-size_t shared_bytes = (block.y + 2) * (block.x + 2) * sizeof(unsigned char);
+dim3 grid ((cols + block.x-1)/block.x,
+   (rows + block.y-1)/block.y);
+// shared 按 float 计算，为梯度 kernel 准备
+size_t sh_bytes_f = size_t(block.y+2)*(block.x+2)*sizeof(float);
 
-// -------- 2. 计时用 CUDA events ----------
-cudaEvent_t e0,e1,e2,e3;                       // e0‑e1 grad, e1‑e2 nms, e2‑e3 threshold
-cudaEventCreate(&e0); cudaEventCreate(&e1);
-cudaEventCreate(&e2); cudaEventCreate(&e3);
+// —— 3. 创建计时事件 —— 
+cudaEvent_t e0,e1,e2,e3;
+cudaEventCreate(&e0);  cudaEventCreate(&e1);
+cudaEventCreate(&e2);  cudaEventCreate(&e3);
 
-// -------- 3‑A. 梯度计算 ----------
+// —— 4. uchar→float cast —— 
+cast_uchar_to_float<<<grid, block>>>(d_src_u, d_src_f,
+                             rows, cols, cols);
+cudaDeviceSynchronize();
+
+// —— 5-A. 梯度计算（开始计时） —— 
 cudaEventRecord(e0);
-GradientImageKernel<<<grid, block, shared_bytes>>>(d_src, d_mag, d_ang, rows, cols, step);
+GradientImageKernel<<<grid, block, sh_bytes_f>>>(
+d_src_f, d_mag_f, d_ang, rows, cols, /*stride_f=*/cols);
 cudaDeviceSynchronize();
 cudaEventRecord(e1);
 
-// -------- 3‑B. 非极大值抑制 ----------
-non_maximum_suppression_kernel<<<grid, block>>>(d_mag, d_ang, rows, cols, step);
+// —— 5-B. 非极大值抑制 —— 
+non_maximum_suppression_kernel<<<grid, block>>>(
+d_mag_f, d_ang, rows, cols, /*stride_f=*/cols);
 cudaDeviceSynchronize();
 cudaEventRecord(e2);
 
-// -------- 3‑C. 双阈值 ----------
-double_threshold_kernel<<<grid, block>>>(d_mag, cols, rows,
-                                 low_threshold, high_threshold, step);
+// —— 5-C. 双阈值 —— 
+double_threshold_kernel<<<grid, block>>>(
+d_mag_f, cols, rows,
+float(low_threshold), float(high_threshold),
+/*stride_f=*/step_u);
 cudaDeviceSynchronize();
 cudaEventRecord(e3);
 
-// -------- 4. 取回结果 ----------
+// —— 6. float→uchar cast & 拷回 —— 
+cast_float_to_uchar<<<grid, block>>>(d_mag_f, d_dst_u,
+                             rows, cols, cols);
+cudaDeviceSynchronize();
 img_out.create(rows, cols, CV_8UC1);
-cudaMemcpy(img_out.data, d_mag, img_bytes, cudaMemcpyDeviceToHost);
+cudaMemcpy(img_out.data, d_dst_u, img_bytes,
+   cudaMemcpyDeviceToHost);
 
-// -------- 5. 打印计时 ----------
+// —— 7. 打印各阶段耗时 —— 
 float t_grad=0.f, t_nms=0.f, t_thr=0.f, t_total=0.f;
-cudaEventElapsedTime(&t_grad , e0, e1);   // ms
+cudaEventElapsedTime(&t_grad , e0, e1);
 cudaEventElapsedTime(&t_nms  , e1, e2);
 cudaEventElapsedTime(&t_thr  , e2, e3);
 cudaEventElapsedTime(&t_total, e0, e3);
-// std::cout << std::fixed << std::setprecision(3);
 std::cout << "Gradient kernel   : " << t_grad  << " ms\n";
 std::cout << "NMS kernel        : " << t_nms   << " ms\n";
 std::cout << "Threshold kernel  : " << t_thr   << " ms\n";
 std::cout << "Total GPU stage   : " << t_total << " ms\n";
 
-// -------- 6. 释放资源 ----------
-cudaFree(d_src);
-cudaFree(d_mag);
+// —— 8. 释放显存 & 事件 —— 
+cudaFree(d_src_u);
+cudaFree(d_dst_u);
+cudaFree(d_src_f);
+cudaFree(d_mag_f);
 cudaFree(d_ang);
-cudaEventDestroy(e0); cudaEventDestroy(e1);
-cudaEventDestroy(e2); cudaEventDestroy(e3);
+cudaEventDestroy(e0);
+cudaEventDestroy(e1);
+cudaEventDestroy(e2);
+cudaEventDestroy(e3);
 }
-// =======================================================================
-
-
 
 // ================== **接口细节改动** ==================
 // 1. non_maximum_suppression_kernel & double_threshold_kernel *不变*
