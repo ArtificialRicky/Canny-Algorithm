@@ -272,7 +272,7 @@ __global__ void double_threshold_kernel(float *img, int width, int height, float
     int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
     // 为了使用简单边界，分配 tile 比实际 block 大两列两行
-    __shared__ float tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 2];
+    __shared__ float tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 3];
 
     int local_x = threadIdx.x + 1;
     int local_y = threadIdx.y + 1;
