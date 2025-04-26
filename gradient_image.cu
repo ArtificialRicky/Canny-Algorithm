@@ -9,7 +9,7 @@
 #include <math.h>
 
 
-#define BLOCK_SIZE_X 32
+#define BLOCK_SIZE_X 16
 #define BLOCK_SIZE_Y 4
 #define SHMEM_WIDTH (BLOCK_SIZE_X + 2)
 #define SHMEM_HEIGHT (BLOCK_SIZE_Y + 2)
