@@ -13,6 +13,7 @@
 #define BLOCK_SIZE_Y 4
 #define SHMEM_WIDTH (BLOCK_SIZE_X + 2)
 #define SHMEM_HEIGHT (BLOCK_SIZE_Y + 2)
+#define epsilon 0.00001f
 
 // 定义角度阈值判断函数
 __device__ bool is_45(float Angle) {
@@ -29,6 +30,10 @@ __device__ bool is_135(float Angle) {
 
 __device__ bool is_180(float Angle) {
     return (Angle == 0) || (Angle > 135 && Angle <= 180) || (Angle > 315 && Angle <= 360);
+}
+
+__device__ int get_angle(float Angle) {
+    return Angle<epsilon?3:(int(Angle-epsilon)/45)%4;
 }
 
 void Gradient_image(const cv::Mat &img_src,
