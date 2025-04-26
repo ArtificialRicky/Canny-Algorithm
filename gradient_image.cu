@@ -13,7 +13,7 @@
 #define BLOCK_SIZE_Y 16
 #define SHMEM_WIDTH (BLOCK_SIZE_X + 2)
 #define SHMEM_HEIGHT (BLOCK_SIZE_Y + 2)
-#define epsilon 0.00001f
+// #define epsilon 0.00001f
 
 // 定义角度阈值判断函数
 __device__ bool is_45(float Angle) {
@@ -32,9 +32,14 @@ __device__ bool is_180(float Angle) {
     return (Angle == 0) || (Angle > 135 && Angle <= 180) || (Angle > 315 && Angle <= 360);
 }
 
-__device__ int get_angle(float Angle) {
-    return Angle<epsilon?3:(int(Angle-epsilon)/45)%4;
-}
+// __device__ int get_angle(float Angle) {
+//     return Angle<epsilon?3:(int(Angle-epsilon)/45)%4;
+// }
+
+__constant__ int DX_PREV[4]  = {  1, 0,  -1, -1 };
+__constant__ int DY_PREV[4]  = { -1, -1, -1, 0 };
+__constant__ int DX_NEXT[4]  = { -1, 0,  1,  1 };
+__constant__ int DY_NEXT[4]  = {  1, 1,  1,  0 };
 
 void Gradient_image(const cv::Mat &img_src,
     cv::Mat &img_out,      // an empty matrix to store result
@@ -222,21 +227,25 @@ __global__ void non_maximum_suppression_kernel(
 
     float Angle = angle[i * cols + j];
     uchar value = sh_img[ty + 1][tx + 1];
-    uchar previous = 0, next = 0;
+    
+    int dir = (((int)Angle % 180)+179) / 45;
+    uchar previous = sh_img[ty + 1 + DY_PREV[dir]][tx + 1 + DX_PREV[dir]];
+    uchar next     = sh_img[ty + 1 + DY_NEXT[dir]][tx + 1 + DX_NEXT[dir]];
+    // uchar previous = 0, next = 0;
 
-    if (is_45(Angle)) {
-        previous = sh_img[ty][tx + 2];    // (i-1, j+1)
-        next     = sh_img[ty + 2][tx];     // (i+1, j-1)
-    } else if (is_90(Angle)) {
-        previous = sh_img[ty][tx + 1];    // (i-1, j)
-        next     = sh_img[ty + 2][tx + 1]; // (i+1, j)
-    } else if (is_135(Angle)) {
-        previous = sh_img[ty][tx];         // (i-1, j-1)
-        next     = sh_img[ty + 2][tx + 2]; // (i+1, j+1)
-    } else if (is_180(Angle)) {
-        previous = sh_img[ty + 1][tx];     // (i, j-1)
-        next     = sh_img[ty + 1][tx + 2]; // (i, j+1)
-    }
+    // if (is_45(Angle)) {
+    //     previous = sh_img[ty][tx + 2];    // (i-1, j+1)
+    //     next     = sh_img[ty + 2][tx];     // (i+1, j-1)
+    // } else if (is_90(Angle)) {
+    //     previous = sh_img[ty][tx + 1];    // (i-1, j)
+    //     next     = sh_img[ty + 2][tx + 1]; // (i+1, j)
+    // } else if (is_135(Angle)) {
+    //     previous = sh_img[ty][tx];         // (i-1, j-1)
+    //     next     = sh_img[ty + 2][tx + 2]; // (i+1, j+1)
+    // } else if (is_180(Angle)) {
+    //     previous = sh_img[ty + 1][tx];     // (i, j-1)
+    //     next     = sh_img[ty + 1][tx + 2]; // (i, j+1)
+    // }
 
     if (value < previous || value < next)
         img[i * step + j] = 0;
