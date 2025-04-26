@@ -10,7 +10,7 @@
 
 
 #define BLOCK_SIZE_X 16
-#define BLOCK_SIZE_Y 4
+#define BLOCK_SIZE_Y 16
 #define SHMEM_WIDTH (BLOCK_SIZE_X + 2)
 #define SHMEM_HEIGHT (BLOCK_SIZE_Y + 2)
 #define epsilon 0.00001f
@@ -276,40 +276,68 @@ __global__ void double_threshold_kernel(float *img, int width, int height, float
     int x = blockIdx.x * blockDim.x + threadIdx.x + 1;
     int y = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
+    if (x >= width - 1 || y >= height - 1) return;
     // 为了使用简单边界，分配 tile 比实际 block 大两列两行
     __shared__ float tile[BLOCK_SIZE_Y + 2][BLOCK_SIZE_X + 3];
 
-    int local_x = threadIdx.x + 1;
-    int local_y = threadIdx.y + 1;
+    int lx = threadIdx.x + 1; // 本线程在 tile 中的 x 坐标
+    int ly = threadIdx.y + 1; // 本线程在 tile 中的 y 坐标
 
-    // 加载中心区域
-    tile[local_y][local_x] = img[y * step + x];
+    // 1) 加载中心像素
+    tile[ly][lx] = img[y * step + x];
 
-    // 保证共享内存加载完毕
+    // 2) block 边缘线程分别加载它们对应的四周像素
+    // 上
+    if (threadIdx.y == 0) {
+        tile[ly - 1][lx] = img[(y - 1) * step + x];
+    }
+    // 下
+    if (threadIdx.y == blockDim.y - 1) {
+        tile[ly + 1][lx] = img[(y + 1) * step + x];
+    }
+    // 左
+    if (threadIdx.x == 0) {
+        tile[ly][lx - 1] = img[y * step + (x - 1)];
+    }
+    // 右
+    if (threadIdx.x == blockDim.x - 1) {
+        tile[ly][lx + 1] = img[y * step + (x + 1)];
+    }
+    // 四个角：
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+        tile[ly - 1][lx - 1] = img[(y - 1) * step + (x - 1)];
+    }
+    if (threadIdx.x == 0 && threadIdx.y == blockDim.y - 1) {
+        tile[ly + 1][lx - 1] = img[(y + 1) * step + (x - 1)];
+    }
+    if (threadIdx.x == blockDim.x - 1 && threadIdx.y == 0) {
+        tile[ly - 1][lx + 1] = img[(y - 1) * step + (x + 1)];
+    }
+    if (threadIdx.x == blockDim.x - 1 && threadIdx.y == blockDim.y - 1) {
+        tile[ly + 1][lx + 1] = img[(y + 1) * step + (x + 1)];
+    }
     __syncthreads();
 
     // 仅处理内部区域像素，不处理边界（已通过传参或 grid 配置排除）
-    float value = tile[local_y][local_x];
+    float value = tile[ly][lx];
     if (value < low) {
-        value = 0;
+        value = 0.0;
     } else if (value > high) {
-        value = 255;
+        value = 255.0;
     } else {
+        value = 0.0;
         bool has_strong_neighbor = false;
         #pragma unroll
         for (int m = -1; m <= 1 && !has_strong_neighbor; ++m) {
             #pragma unroll
             for (int n = -1; n <= 1; ++n) {
-                if (m == 0 && n == 0) continue;
-                if (tile[local_y + m][local_x + n] > high) {
-                    value = 255;
+                if (tile[ly + m][lx + n] > high) {
+                    value = 255.0;
                     has_strong_neighbor = true;
                     break;
                 }
             }
         }
-        if (!has_strong_neighbor)
-            value = 0;
     }
 
     // 写回结果到全局内存
