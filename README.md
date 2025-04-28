@@ -26,7 +26,7 @@ By default the program reads `input/pic_4k.png`. To use your own image:
 2. **Update the filename in code**  
 In `canny_algorithm.cpp`, locate the line:
 ```cpp
-cv::Mat img_src = cv::imread("input/pic_4k.png", cv::IMREAD_COLOR);
+cv::Mat img_src = cv::imread("input/4k.png", cv::IMREAD_COLOR);
 ```
 and change it to your file, for example:
 ```
