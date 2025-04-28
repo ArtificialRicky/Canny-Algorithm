@@ -15,21 +15,18 @@ int main() {
 
     int64 start = cv::getTickCount();
     
-    // 转换为灰度图并进行高斯滤波
     cv::Mat img_gray;
     cv::cvtColor(img_src, img_gray, cv::COLOR_BGR2GRAY);
     cv::Mat img_blur;
     if (!img_gray.empty())
         cv::GaussianBlur(img_gray, img_blur, cv::Size(5, 5), 150);
 
-    // 设置双阈值参数
     int low = 40;
     int high = 60;
 
     cv::Mat img_out;
-    // 调用基于 CUDA 的 Canny 边缘检测函数
     Canny(img_blur, img_out, low, high);
-    cv::imwrite("output/canny/touka-kirisima-canny.png", img_out);
+    cv::imwrite("output/canny/output.png", img_out);
 
     int64 end = cv::getTickCount();
     std::cout << "==> Total runtime: " << (end - start) / cv::getTickFrequency() << " sec\n";
