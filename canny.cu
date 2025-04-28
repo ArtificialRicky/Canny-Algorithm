@@ -1,5 +1,5 @@
 // gradient_image.cu
-#include "gradient_image.h"
+#include "canny.h"
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core.hpp>
