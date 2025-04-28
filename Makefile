@@ -1,4 +1,4 @@
-CU_FILE = gradient_image.cu
+CU_FILE = canny.cu
 CPP_FILE = canny_algorithm.cpp
 OUTPUT_FILE = canny_algorithm.out
 
