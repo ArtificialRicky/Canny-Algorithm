@@ -3,7 +3,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <iostream>
-#include "gradient_image.h"
+#include "canny.h"
 
 int main() {
     cv::Mat img_src = cv::imread("input/pic_4k.png", cv::IMREAD_COLOR);
